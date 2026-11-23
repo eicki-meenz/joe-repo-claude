@@ -2,6 +2,7 @@
 /* Dranbleiben – Offline-Habit-Tracker (PWA). Alle Daten liegen lokal (localStorage). */
 
 const KEY = 'dranbleiben.v1';
+const APP_VERSION = '4 (Serie ohne Rhythmus)';
 const DAY = 864e5;
 const COLORS = ['#22c55e', '#0a84ff', '#ff9f0a', '#bf5af2', '#ff375f', '#14b8a6', '#eab308', '#a16207'];
 const EMOJIS = ['💊', '🏋️', '🧘', '🏃', '💧', '📖', '🥗', '😴', '🦷', '🧠', '🚴', '🏊', '✍️', '🎸', '🌿', '☀️', '🧹', '📞', '💰', '🧴', '🥩', '🚶', '❄️', '🧺'];
@@ -477,7 +478,7 @@ function renderSettings() {
   ${archived.length ? `<h2 class="sec">Archiviert</h2><div class="group">${archived.map(h => `<div class="row"><div class="lbl">${esc(h.emoji)} ${esc(h.name)}</div><button class="btn small sec" data-action="unarchive" data-id="${h.id}">Zurückholen</button></div>`).join('')}</div>` : ''}
   <h2 class="sec">Sonstiges</h2>
   <div class="group"><div class="row"><button class="rowbtn danger" data-action="wipe">Alle Daten löschen</button></div></div>
-  <p class="hint" style="text-align:center">Dranbleiben · v1 · offline</p>`;
+  <p class="hint" style="text-align:center">Dranbleiben · Version ${APP_VERSION}</p>`;
 }
 
 /* ---------- Sheets ---------- */
@@ -706,7 +707,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) { _c
 setInterval(() => { if (!document.hidden && ctx().today !== todayN()) { _ctx = null; render(); } }, 60e3);
 
 render();
-if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('./sw.js').catch(() => {});
+if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).catch(() => {});
 
 // Für Tests
 window.__app = { get state() { return state; }, set state(s) { state = migrate(s); save(); render(); }, statusAt, streak, greenShare, ctx, dn, ds, todayN, render };
