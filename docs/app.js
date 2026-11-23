@@ -190,8 +190,8 @@ function statusColor(s) { return s == null ? '#8e8e93' : `hsl(${Math.round(130 *
 function streak(h, c) {
   const days = c.days.get(h.id) || [];
   const T = c.today, paused = c.paused, sc = h.schedule;
-  if (sc.type === 'daily' || sc.type === 'interval') {
-    const max = sc.type === 'daily' ? 1 : sc.max;
+  if (sc.type === 'daily' || sc.type === 'interval' || sc.type === 'none') {
+    const max = sc.type === 'interval' ? sc.max : 1; // ohne Rhythmus: Serie = Tage am Stück
     let run = 0, best = 0, prev = null;
     for (const x of days) {
       if (x > T) continue;
@@ -199,7 +199,7 @@ function streak(h, c) {
       best = Math.max(best, run); prev = x;
     }
     const cur = prev != null && effElapsed(prev, T, paused) <= max ? run : 0;
-    return { cur, best, unit: sc.type === 'daily' ? ['Tag', 'Tage'] : ['Mal', 'Mal'] };
+    return { cur, best, unit: sc.type === 'interval' ? ['Mal', 'Mal'] : ['Tag', 'Tage'] };
   }
   if (sc.type === 'weekdays' && sc.days && sc.days.length) {
     let run = 0, best = 0;
@@ -222,7 +222,7 @@ function streak(h, c) {
     }
     return { cur: run, best, unit: PERIOD[sc.period].unit };
   }
-  return { cur: days.length, best: null, unit: ['Mal', 'Mal'], total: true };
+  return { cur: 0, best: 0, unit: ['Mal', 'Mal'] };
 }
 function greenShare(h, c, N = 30) { // Anteil Tage „nicht überfällig“ (rot) in den letzten N Tagen
   const T = c.today;
@@ -334,8 +334,7 @@ function card(h, c) {
   const col = statusColor(st.doneToday ? 0 : st.s);
   let sub = `<b>${esc(st.text)}</b>`;
   if (st.last != null && !st.doneToday && h.schedule.type !== 'none' && !/^Zuletzt/.test(st.text)) sub += ` · zuletzt ${rel(st.last, c.today)}`;
-  const streakHtml = sk.total ? (sk.cur ? `<span class="streak">${sk.cur}×</span>` : '')
-    : sk.cur > 0 ? `<span class="streak ${sk.cur >= 3 ? 'hot' : ''}">🔥 ${sk.cur}</span>` : '';
+  const streakHtml = sk.cur > 0 ? `<span class="streak ${sk.cur >= 3 ? 'hot' : ''}">🔥 ${sk.cur}</span>` : '';
   const spectrum = st.s != null && !st.ok && !st.doneToday ? `<div class="spectrum"><i style="left:${Math.round(st.s * 100)}%"></i></div>` : '';
   return `<div class="card ${st.doneToday ? 'done' : ''}" style="--c:${col};--tint:${h.color}26">
     <button class="card-main" data-action="open" data-id="${h.id}">
@@ -426,7 +425,7 @@ function renderStats() {
   <div class="group"><div class="srow"><span>Habit</span><span>Serie</span><span>Rekord</span><span>Grün</span></div>`;
   for (const h of hs) {
     const sk = streak(h, c), gs = greenShare(h, c);
-    html += `<button class="srow" style="width:100%;text-align:left" data-action="open" data-id="${h.id}"><span>${esc(h.emoji)} ${esc(h.name)}</span><span>${sk.total ? '–' : sk.cur}</span><span>${sk.best ?? '–'}</span><span>${gs == null ? '–' : gs + '%'}</span></button>`;
+    html += `<button class="srow" style="width:100%;text-align:left" data-action="open" data-id="${h.id}"><span>${esc(h.emoji)} ${esc(h.name)}</span><span>${sk.cur}</span><span>${sk.best ?? '–'}</span><span>${gs == null ? '–' : gs + '%'}</span></button>`;
   }
   html += `</div><p class="hint"><b>Grün</b> = Anteil der letzten 30 Tage, an denen das Habit nicht überfällig war. Ein verpasster Tag kostet ein paar Prozent, setzt aber nichts auf null. <b>Comeback</b> = du hast ein überfälliges Habit wieder aufgenommen.</p>`;
   return html;
@@ -507,8 +506,9 @@ function renderDetail(id) {
   <div><span class="pill ${st.s == null ? 'neutral' : ''}" style="--c:${col}">${esc(st.text)}</span> <span class="hint">${esc(scheduleText(h.schedule))}</span></div>
   <div class="tiles">
     <div class="tile"><b>${lastTxt}</b><span>Zuletzt</span></div>
-    <div class="tile"><b>${sk.total ? ents.length : sk.cur} <small style="font-size:14px">${sk.total ? '×' : sk.unit[sk.cur === 1 ? 0 : 1]}</small></b><span>${sk.total ? 'Gesamt' : 'Aktuelle Serie'}</span></div>
-    ${sk.total ? '' : `<div class="tile"><b>${sk.best}</b><span>Rekord-Serie</span></div><div class="tile"><b>${gs == null ? '–' : gs + '%'}</b><span>Grün-Quote (30 T.)</span></div>`}
+    <div class="tile"><b>${sk.cur} <small style="font-size:14px">${sk.unit[sk.cur === 1 ? 0 : 1]}</small></b><span>Aktuelle Serie 🔥</span></div>
+    <div class="tile"><b>${sk.best}</b><span>Rekord-Serie</span></div>
+    ${gs == null ? '' : `<div class="tile"><b>${gs}%</b><span>Grün-Quote (30 T.)</span></div>`}
     <div class="tile"><b>${comebacks(h)}</b><span>Comebacks 🐎</span></div>
     <div class="tile"><b>${ents.length}</b><span>Einträge gesamt</span></div>
   </div>
@@ -555,7 +555,7 @@ const TYPE_HINTS = {
   weekdays: 'An festen Wochentagen. Einen verpassten Termin kannst du bis zum nächsten Termin nachholen.',
   interval: 'Flexibler Abstand, z. B. Workout alle 3–5 Tage. Vor X: grün. Zwischen X und Y: gelb bis orange. Nach Y: rot.',
   period: 'Eine Anzahl pro Woche, Monat oder Quartal, egal an welchen Tagen. Die Farbe richtet sich danach, wie knapp es noch wird.',
-  none: 'Kein Soll, nur „zuletzt am …“. Gut für Dinge, die du nur im Blick behalten willst.',
+  none: 'Kein Soll und kein Rot, nur „zuletzt am …“ und eine 🔥-Serie für Tage am Stück. Gut für Dinge wie „keine Shorts geschaut“.',
 };
 
 function renderNote(entryId) {
