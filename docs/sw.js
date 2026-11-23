@@ -1,5 +1,5 @@
 // Network-first: online immer die neueste Version (am HTTP-Cache vorbei), offline aus dem Cache.
-const CACHE = 'dranbleiben-v4';
+const CACHE = 'dranbleiben-v5';
 const ASSETS = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png'];
 const TIMEOUT = 3500; // bei schlechtem Netz nicht ewig warten

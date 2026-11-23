@@ -111,12 +111,11 @@ textarea { width: 100%; min-height: 80px; resize: vertical; }
 .colors button.on { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--sw); }
 .emoji-in { width: 56px !important; flex: none !important; text-align: center; font-size: 24px; }
 
-.f-weekdays, .f-interval, .f-period { display: none; }
-form[data-type=weekdays] .f-weekdays, form[data-type=interval] .f-interval, form[data-type=period] .f-period { display: flex; }
+.f-weekdays, .f-interval, .f-period, .f-challenge { display: none; }
+form[data-type=weekdays] .f-weekdays, form[data-type=interval] .f-interval, form[data-type=period] .f-period, form[data-type=challenge] .f-challenge { display: flex; }
 form[data-type=weekdays] .chips.f-weekdays { display: grid; }
 .chips label { display: block; }
 .chips.types { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.chips.types label:last-child { grid-column: span 2; }
 .chips.types .chip { display: block; text-align: center; padding: 11px 8px; border-radius: 12px; }
 .chips.f-weekdays { grid-template-columns: repeat(7, 1fr); gap: 6px; padding-top: 0; }
 .chips.f-weekdays .chip { display: block; text-align: center; padding: 9px 0; border-radius: 10px; }
@@ -164,3 +163,21 @@ form[data-type=weekdays] .chips.f-weekdays { display: grid; }
 
 #fx { position: fixed; inset: 0; pointer-events: none; z-index: 50; width: 100vw; height: 100vh; }
 #haptic { position: absolute; left: -9999px; opacity: 0; pointer-events: none; }
+
+/* Monats-Challenge */
+.chal { border-radius: 18px; padding: 2px 10px 12px; margin: 8px 0; background: linear-gradient(135deg, rgba(245,158,11,.16), rgba(239,68,68,.12)); border: 1.5px solid rgba(245,158,11,.45); }
+.chal .card { margin: 8px 0 10px; }
+.chal.review { padding: 12px 14px; }
+.chbar { position: relative; height: 8px; border-radius: 4px; background: var(--chip); margin: 0 4px; }
+.chbar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: linear-gradient(90deg, #f59e0b, #f97316); transition: width .4s ease; }
+.chbar b { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--text); opacity: .55; border-radius: 1px; }
+.chtxt { font-size: 13.5px; color: var(--muted); margin: 8px 4px 6px; }
+.chtxt b { color: var(--text); }
+.chdots { display: grid; grid-template-columns: repeat(16, 1fr); gap: 4px; margin: 4px 4px 0; }
+.chdots i { aspect-ratio: 1; border-radius: 50%; background: var(--chip); }
+.chdots i.d { background: #f59e0b; }
+.chdots i.m { background: color-mix(in srgb, var(--danger) 35%, var(--chip)); }
+.chdots i.p { background: color-mix(in srgb, #6366f1 45%, var(--chip)); }
+.chdots i.f { opacity: .55; }
+.chdots i.t { outline: 1.5px solid var(--text); outline-offset: 1px; }
+.chbtns { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }

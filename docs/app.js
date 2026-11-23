@@ -2,7 +2,7 @@
 /* Dranbleiben – Offline-Habit-Tracker (PWA). Alle Daten liegen lokal (localStorage). */
 
 const KEY = 'dranbleiben.v1';
-const APP_VERSION = '4 (Serie ohne Rhythmus)';
+const APP_VERSION = '5 (Monats-Challenges)';
 const DAY = 864e5;
 const COLORS = ['#22c55e', '#0a84ff', '#ff9f0a', '#bf5af2', '#ff375f', '#14b8a6', '#eab308', '#a16207'];
 const EMOJIS = ['💊', '🏋️', '🧘', '🏃', '💧', '📖', '🥗', '😴', '🦷', '🧠', '🚴', '🏊', '✍️', '🎸', '🌿', '☀️', '🧹', '📞', '💰', '🧴', '🥩', '🚶', '❄️', '🧺'];
@@ -27,6 +27,7 @@ function migrate(s) {
   s.habits = Array.isArray(s.habits) ? s.habits : [];
   s.entries = Array.isArray(s.entries) ? s.entries : [];
   s.pauses = Array.isArray(s.pauses) ? s.pauses : [];
+  s.challengeLog = Array.isArray(s.challengeLog) ? s.challengeLog : [];
   s.settings = Object.assign(d.settings, s.settings || {});
   s.v = 1;
   return s;
@@ -89,6 +90,32 @@ function periodBounds(period, n) {
   const q = m - (m % 3);
   return [Date.UTC(y, q, 1) / DAY, Date.UTC(y, q + 3, 1) / DAY - 1];
 }
+
+/* ---------- Monats-Challenges ----------
+   Eine Challenge = tägliches Habit, das genau einen Kalendermonat läuft. Geschafft bei 80 % der Tage (ohne Pausetage). */
+const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+const CH_GOAL = 0.8;
+function monthBounds(m) { const [y, mo] = m.split('-').map(Number); return [Date.UTC(y, mo - 1, 1) / DAY, Date.UTC(y, mo, 1) / DAY - 1]; }
+const monthKey = n => ds(n).slice(0, 7);
+const monthName = m => MONTHS[+m.slice(5, 7) - 1];
+const isChallenge = h => !!(h && h.challenge && !h.challenge.closed);
+function chInfo(h, c) {
+  const [a, b] = monthBounds(h.challenge.month), T = c.today;
+  const days = (c.days.get(h.id) || []).filter(x => x >= a && x <= b);
+  let start = Math.max(a, dn(h.created));
+  if (days.length) start = Math.min(start, days[0]);
+  let eligible = 0, open = 0;
+  for (let x = start; x <= b; x++) {
+    if (c.paused.has(x)) continue;
+    eligible++;
+    if (x >= T && !days.includes(x)) open++;
+  }
+  const needed = Math.max(1, Math.ceil(eligible * CH_GOAL));
+  const done = days.length;
+  return { a, b, start, days, done, needed, eligible, open, success: done >= needed, reachable: done + open >= needed,
+    phase: T < a ? 'planned' : T > b ? 'ended' : 'active', pct: eligible ? Math.round(100 * done / eligible) : 0 };
+}
+function challengeFor(month, exceptId) { return state.habits.find(h => isChallenge(h) && !h.archived && h.challenge.month === month && h.id !== exceptId); }
 
 /* ---------- Kontext (abgeleitete Daten, gecacht bis zum nächsten save) ---------- */
 function ctx() {
@@ -256,11 +283,13 @@ function toggleToday(id, btn) {
   const st = streak(h, ctx());
   const n = comebacks(h);
   let msg;
-  if (cb) msg = n > 1 ? `Wieder im Sattel 🐎 Comeback Nr. ${n}` : 'Wieder im Sattel 🐎 Starkes Comeback!';
+  const chi = isChallenge(h) ? chInfo(h, ctx()) : null;
+  if (chi && chi.done === chi.needed) msg = `🏆 Challenge-Ziel erreicht! ${chi.done}/${chi.needed}`;
+  else if (cb) msg = n > 1 ? `Wieder im Sattel 🐎 Comeback Nr. ${n}` : 'Wieder im Sattel 🐎 Starkes Comeback!';
   else if ([3, 7, 14, 21, 30, 50, 75, 100, 150, 200, 365].includes(st.cur)) msg = `🔥 ${st.cur} ${st.unit[1]} in Folge!`;
   else msg = pick(['Erledigt ✓', 'Stark 💪', 'Weiter so!', 'Läuft 🔥', 'Sauber ✓', 'Gemacht ✓']);
   haptic();
-  confetti(btn, cb || st.cur >= 7 ? 90 : 36);
+  confetti(btn, cb || st.cur >= 7 || (chi && chi.done === chi.needed) ? 120 : 36);
   toast(`${h.emoji} ${msg}`, [['Notiz', () => openSheet({ type: 'note', id: e.id })], ['Rückgängig', () => { state.entries = state.entries.filter(x => x !== e); save(); render(); }]]);
 }
 const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -350,12 +379,18 @@ function card(h, c) {
 
 function renderToday() {
   const c = ctx(), T = c.today;
-  const hs = activeHabits().map(h => ({ h, st: statusAt(h, T, true, c) }));
-  const due = hs.filter(x => !x.st.ok && !x.st.doneToday).sort((a, b) => b.st.s - a.st.s);
-  const rest = hs.filter(x => x.st.ok || x.st.doneToday)
+  const chs = activeHabits().filter(isChallenge).map(h => ({ h, i: chInfo(h, c) }));
+  const chActive = chs.find(x => x.i.phase === 'active');
+  const chPlanned = chs.filter(x => x.i.phase === 'planned');
+  const chEnded = chs.filter(x => x.i.phase === 'ended');
+  const hs = activeHabits().filter(h => !isChallenge(h) || (chActive && h === chActive.h)).map(h => ({ h, st: statusAt(h, T, true, c) }));
+  const regular = hs.filter(x => !chActive || x.h !== chActive.h);
+  const due = regular.filter(x => !x.st.ok && !x.st.doneToday).sort((a, b) => b.st.s - a.st.s);
+  const dueAll = hs.filter(x => !x.st.ok && !x.st.doneToday);
+  const rest = regular.filter(x => x.st.ok || x.st.doneToday)
     .sort((a, b) => (a.st.doneToday - b.st.doneToday) || ((b.st.s ?? -1) - (a.st.s ?? -1)));
   const doneN = hs.filter(x => x.st.doneToday).length;
-  const total = doneN + due.length;
+  const total = doneN + dueAll.length;
   const frac = total ? doneN / total : 1;
   const hr = new Date().getHours();
   const greet = hr < 5 ? 'Gute Nacht' : hr < 11 ? 'Guten Morgen' : hr < 17 ? 'Hallo' : hr < 23 ? 'Guten Abend' : 'Gute Nacht';
@@ -371,11 +406,42 @@ function renderToday() {
   const daysSinceBackup = lb ? Math.floor((Date.now() - lb) / DAY) : null;
   if (state.entries.length >= 10 && (daysSinceBackup == null || daysSinceBackup >= 14))
     html += `<div class="banner"><span>☁️</span><span class="grow">${lb ? `Letztes Backup vor ${daysSinceBackup} Tagen.` : 'Noch kein Backup.'} In iCloud sichern?</span><button class="link" data-action="export">Sichern</button></div>`;
-  if (!hs.length) return html + `<div class="empty"><div style="font-size:48px">🌱</div><p>Noch keine Habits.<br>Tippe auf <b>+</b>, um eins anzulegen.</p></div>`;
+  for (const { h, i } of chEnded) html += challengeReview(h, i);
+  if (chActive) html += `<h2 class="sec">🏆 Challenge im ${monthName(chActive.h.challenge.month)}</h2>` + challengeCard(chActive.h, chActive.i, c);
+  for (const { h } of chPlanned) html += `<button class="banner" style="width:100%;text-align:left" data-action="open" data-id="${h.id}"><span>🗓️</span><span class="grow"><b>Nächste Challenge:</b> ${esc(h.emoji)} ${esc(h.name)} ab 1. ${monthName(h.challenge.month)}</span></button>`;
+  if (!hs.length && !chs.length) return html + `<div class="empty"><div style="font-size:48px">🌱</div><p>Noch keine Habits.<br>Tippe auf <b>+</b>, um eins anzulegen.</p></div>`;
   if (due.length) html += `<h2 class="sec">Jetzt dran</h2>` + due.map(x => card(x.h, c)).join('');
-  else html += `<div class="banner"><span>🎉</span><span class="grow"><b>Alles im grünen Bereich.</b> Nichts ist fällig.</span></div>`;
+  else if (regular.length) html += `<div class="banner"><span>🎉</span><span class="grow"><b>Alles im grünen Bereich.</b> Nichts ist fällig.</span></div>`;
   if (rest.length) html += `<h2 class="sec">Im grünen Bereich</h2>` + rest.map(x => card(x.h, c)).join('');
   return html;
+}
+
+function challengeCard(h, i, c) {
+  const T = c.today;
+  let dots = '';
+  for (let x = i.a; x <= i.b; x++) {
+    let cls = x > T ? 'f' : i.days.includes(x) ? 'd' : c.paused.has(x) ? 'p' : x < i.start ? 'f' : x === T ? '' : 'm';
+    if (x === T) cls += ' t';
+    dots += `<i class="${cls}" title="${ds(x)}"></i>`;
+  }
+  const w = Math.min(100, Math.round(100 * i.done / Math.max(1, i.eligible)));
+  const goal = Math.round(100 * i.needed / Math.max(1, i.eligible));
+  const left = i.needed - i.done;
+  const txt = i.success ? `<b>Ziel erreicht 🏆</b> ${i.done} von ${i.eligible} Tagen. Jeder weitere Tag ist Bonus.`
+    : i.reachable ? `<b>${i.done} von ${i.needed} Tagen</b> fürs Ziel · noch ${plural(left, 'Tag', 'Tage')} nötig, ${i.open} übrig`
+    : `<b>${i.done} Tage</b> geschafft. Die 80 % sind nicht mehr drin, aber jeder Tag zählt trotzdem 💪`;
+  return `<div class="chal">${card(h, c)}
+    <div class="chbar"><i style="width:${w}%"></i><b style="left:${goal}%"></b></div>
+    <div class="chtxt">${txt}</div>
+    <div class="chdots">${dots}</div></div>`;
+}
+function challengeReview(h, i) {
+  const m = monthName(h.challenge.month);
+  const head = i.success ? `🏆 <b>${m}-Challenge geschafft!</b>` : `💪 <b>${m}-Challenge vorbei.</b>`;
+  const body = i.success ? `${esc(h.emoji)} ${esc(h.name)}: ${i.done} von ${i.eligible} Tagen (${i.pct} %).`
+    : `${esc(h.emoji)} ${esc(h.name)}: ${i.done} von ${i.eligible} Tagen (${i.pct} %), Ziel waren ${i.needed}. Das sind ${i.done} Tage mehr als ohne Challenge.`;
+  return `<div class="chal review"><div class="chtxt" style="font-size:15px">${head}<br>${body}<br>Wie geht's weiter?</div>
+    <div class="chbtns"><button class="btn small" data-action="chKeep" data-id="${h.id}">Als Habit behalten</button><button class="btn small sec" data-action="chEnd" data-id="${h.id}">Beenden</button></div></div>`;
 }
 
 function heatmap(c, h, weeks = 17) {
@@ -428,7 +494,10 @@ function renderStats() {
     const sk = streak(h, c), gs = greenShare(h, c);
     html += `<button class="srow" style="width:100%;text-align:left" data-action="open" data-id="${h.id}"><span>${esc(h.emoji)} ${esc(h.name)}</span><span>${sk.cur}</span><span>${sk.best ?? '–'}</span><span>${gs == null ? '–' : gs + '%'}</span></button>`;
   }
-  html += `</div><p class="hint"><b>Grün</b> = Anteil der letzten 30 Tage, an denen das Habit nicht überfällig war. Ein verpasster Tag kostet ein paar Prozent, setzt aber nichts auf null. <b>Comeback</b> = du hast ein überfälliges Habit wieder aufgenommen.</p>`;
+  html += `</div>`;
+  const log = state.challengeLog.slice().sort((a, b) => b.month.localeCompare(a.month));
+  if (log.length) html += `<h2 class="sec">Challenges</h2><div class="group">` + log.map(l => `<div class="row"><div class="lbl">${l.success ? '🏆' : '💪'} ${monthName(l.month)} ${l.month.slice(0, 4)} · ${esc(l.emoji)} ${esc(l.name)}<small>${l.done}/${l.eligible} Tage (${Math.round(100 * l.done / Math.max(1, l.eligible))} %) · ${l.kept ? 'als Habit behalten' : 'beendet'}</small></div></div>`).join('') + `</div>`;
+  html += `<p class="hint"><b>Grün</b> = Anteil der letzten 30 Tage, an denen das Habit nicht überfällig war. Ein verpasster Tag kostet ein paar Prozent, setzt aber nichts auf null. <b>Comeback</b> = du hast ein überfälliges Habit wieder aufgenommen.</p>`;
   return html;
 }
 
@@ -513,6 +582,7 @@ function renderDetail(id) {
     <div class="tile"><b>${comebacks(h)}</b><span>Comebacks 🐎</span></div>
     <div class="tile"><b>${ents.length}</b><span>Einträge gesamt</span></div>
   </div>
+  ${isChallenge(h) ? (() => { const i = chInfo(h, c); return `<h2 class="sec">🏆 Challenge ${monthName(h.challenge.month)}</h2>` + (i.phase === 'ended' ? challengeReview(h, i) : challengeCard(h, i, c)); })() : ''}
   ${heatmap(c, h)}
   <h2 class="sec">Nachtragen</h2>
   <div class="group">
@@ -530,9 +600,13 @@ function renderEditor(id) {
   if (id && !h) return '';
   const sc = h ? h.schedule : { type: 'daily' };
   const d = ui.draft || (ui.draft = { emoji: h ? h.emoji : pick(EMOJIS), color: h ? h.color : COLORS[state.habits.length % COLORS.length] });
-  const types = [['daily', 'Täglich'], ['weekdays', 'Wochentage'], ['interval', 'Alle X–Y Tage'], ['period', 'X× pro Zeitraum'], ['none', 'Ohne Rhythmus']];
+  const types = [['daily', 'Täglich'], ['weekdays', 'Wochentage'], ['interval', 'Alle X–Y Tage'], ['period', 'X× pro Zeitraum'], ['none', 'Ohne Rhythmus'], ['challenge', '🏆 Monats-Challenge']];
+  const curType = isChallenge(h) ? 'challenge' : sc.type;
+  const T = ctx().today, mNow = monthKey(T), mNext = monthKey(monthBounds(mNow)[1] + 1);
+  const mSel = isChallenge(h) ? h.challenge.month : (challengeFor(mNow) ? mNext : mNow);
+  const mOpts = [...new Set([mNow, mNext, mSel])].sort().map(m => `<option value="${m}" ${m === mSel ? 'selected' : ''}>${monthName(m)} ${m.slice(0, 4)}${challengeFor(m, h && h.id) ? ' (belegt)' : ''}</option>`).join('');
   return `<div class="sheet-head"><h3>${h ? 'Habit bearbeiten' : 'Neues Habit'}</h3><button class="x" data-action="close">Abbrechen</button></div>
-  <form id="editor" data-type="${sc.type}" autocomplete="off">
+  <form id="editor" data-type="${curType}" autocomplete="off">
     <div class="group">
       <div class="row"><input type="text" class="emoji-in" name="emoji" value="${esc(d.emoji)}" maxlength="8"><input type="text" name="name" placeholder="Name, z. B. Kreatin" value="${esc(h ? h.name : '')}" maxlength="40"></div>
     </div>
@@ -540,11 +614,12 @@ function renderEditor(id) {
     <div class="group"><div class="colors">${COLORS.map(cl => `<button type="button" class="${cl === d.color ? 'on' : ''}" style="--sw:${cl}" data-action="pickColor" data-c="${cl}" aria-label="Farbe"></button>`).join('')}</div></div>
     <h2 class="sec">Rhythmus</h2>
     <div class="group">
-      <div class="chips types">${types.map(([v, l]) => `<label><input type="radio" name="type" value="${v}" ${sc.type === v ? 'checked' : ''}><span class="chip">${l}</span></label>`).join('')}</div>
+      <div class="chips types">${types.map(([v, l]) => `<label><input type="radio" name="type" value="${v}" ${curType === v ? 'checked' : ''}><span class="chip">${l}</span></label>`).join('')}</div>
       <div class="chips f-weekdays">${WD.map((w, i) => `<label><input type="checkbox" name="wd" value="${i}" ${(sc.days || [0, 2, 4]).includes(i) ? 'checked' : ''}><span class="chip">${w}</span></label>`).join('')}</div>
       <div class="row f-interval"><div class="lbl">Alle</div><input type="number" name="min" min="1" max="365" value="${sc.min || 3}" inputmode="numeric"><span>bis</span><input type="number" name="max" min="1" max="365" value="${sc.max || 5}" inputmode="numeric"><span>Tage</span></div>
       <div class="row f-period"><input type="number" name="times" min="1" max="90" value="${sc.times || 3}" inputmode="numeric"><div class="lbl">× pro</div>
         <select name="period">${['week', 'month', 'quarter'].map(p => `<option value="${p}" ${(sc.period || 'week') === p ? 'selected' : ''}>${PERIOD[p].unit[0]}</option>`).join('')}</select></div>
+      <div class="row f-challenge"><div class="lbl">Monat<small>Täglich, Ziel: 80 % der Tage</small></div><select name="chMonth">${mOpts}</select></div>
     </div>
     <p class="hint" id="typeHint"></p>
     <button class="btn" type="submit">${h ? 'Speichern' : 'Anlegen'}</button>
@@ -556,6 +631,7 @@ const TYPE_HINTS = {
   weekdays: 'An festen Wochentagen. Einen verpassten Termin kannst du bis zum nächsten Termin nachholen.',
   interval: 'Flexibler Abstand, z. B. Workout alle 3–5 Tage. Vor X: grün. Zwischen X und Y: gelb bis orange. Nach Y: rot.',
   period: 'Eine Anzahl pro Woche, Monat oder Quartal, egal an welchen Tagen. Die Farbe richtet sich danach, wie knapp es noch wird.',
+  challenge: 'Ein Kalendermonat lang täglich. Geschafft bei 80 % der Tage, Pausetage zählen nicht mit. Pro Monat gibt es nur eine Challenge, damit der Fokus bleibt. Am Monatsende entscheidest du: als Habit behalten oder beenden.',
   none: 'Kein Soll und kein Rot, nur „zuletzt am …“ und eine 🔥-Serie für Tage am Stück. Gut für Dinge wie „keine Shorts geschaut“.',
 };
 
@@ -600,6 +676,12 @@ function readEditor(form) {
   const type = fd.get('type');
   const name = String(fd.get('name') || '').trim();
   if (!name) { alert('Bitte einen Namen eingeben.'); return null; }
+  if (type === 'challenge') {
+    const month = String(fd.get('chMonth'));
+    const other = challengeFor(month, ui.sheet && ui.sheet.id);
+    if (other) { alert(`Für ${monthName(month)} läuft schon eine Challenge: ${other.emoji} ${other.name}. Eine pro Monat hält den Fokus.`); return null; }
+    return { name, emoji: String(fd.get('emoji') || '').trim() || '⭐', schedule: { type: 'daily' }, challenge: { month } };
+  }
   const sc = { type };
   if (type === 'weekdays') { sc.days = fd.getAll('wd').map(Number).sort(); if (!sc.days.length) { alert('Bitte mindestens einen Wochentag wählen.'); return null; } }
   if (type === 'interval') {
@@ -608,7 +690,7 @@ function readEditor(form) {
     sc.min = a; sc.max = b;
   }
   if (type === 'period') { sc.times = Math.max(1, parseInt(fd.get('times'), 10) || 1); sc.period = fd.get('period'); }
-  return { name, emoji: String(fd.get('emoji') || '').trim() || '⭐', schedule: sc };
+  return { name, emoji: String(fd.get('emoji') || '').trim() || '⭐', schedule: sc, challenge: undefined };
 }
 
 document.addEventListener('click', ev => {
@@ -667,6 +749,15 @@ document.addEventListener('click', ev => {
       save(); render(); break;
     }
     case 'delPause': { const a2 = +el.dataset.a, b2 = +el.dataset.b; state.pauses = state.pauses.filter(p => { const n = dn(p); return n < a2 || n > b2; }); save(); render(); break; }
+    case 'chKeep': case 'chEnd': {
+      const h = state.habits.find(x => x.id === id); if (!isChallenge(h)) break;
+      const i = chInfo(h, ctx());
+      state.challengeLog.push({ name: h.name, emoji: h.emoji, month: h.challenge.month, done: i.done, eligible: i.eligible, needed: i.needed, success: i.success, kept: a === 'chKeep' });
+      if (a === 'chKeep') { delete h.challenge; toast(`${h.emoji} bleibt als tägliches Habit. Den Rhythmus kannst du unter Bearbeiten ändern.`); }
+      else { h.challenge.closed = true; h.archived = true; toast(`${h.emoji} Challenge abgeschlossen. Steht jetzt in der Statistik.`); }
+      if (i.success) confetti(el, 120);
+      save(); closeSheet(); render(); break;
+    }
     case 'hideInstall': state.settings.hideInstall = true; save(); render(); break;
     case 'export': exportBackup(); break;
     case 'import': document.getElementById('importFile').click(); break;
