@@ -358,7 +358,7 @@ function renderToday() {
   const total = doneN + due.length;
   const frac = total ? doneN / total : 1;
   const hr = new Date().getHours();
-  const greet = hr < 11 ? 'Guten Morgen' : hr < 17 ? 'Hallo' : 'Guten Abend';
+  const greet = hr < 5 ? 'Gute Nacht' : hr < 11 ? 'Guten Morgen' : hr < 17 ? 'Hallo' : hr < 23 ? 'Guten Abend' : 'Gute Nacht';
   const C = 2 * Math.PI * 24;
   let html = `<div class="head">
     <div class="grow"><h1>${greet}</h1><div class="date">${fmtDay(T, { weekday: 'long', day: 'numeric', month: 'long' })}</div></div>
@@ -539,7 +539,7 @@ function renderEditor(id) {
     <div class="group"><div class="colors">${COLORS.map(cl => `<button type="button" class="${cl === d.color ? 'on' : ''}" style="--sw:${cl}" data-action="pickColor" data-c="${cl}" aria-label="Farbe"></button>`).join('')}</div></div>
     <h2 class="sec">Rhythmus</h2>
     <div class="group">
-      <div class="chips">${types.map(([v, l]) => `<label><input type="radio" name="type" value="${v}" ${sc.type === v ? 'checked' : ''}><span class="chip">${l}</span></label>`).join('')}</div>
+      <div class="chips types">${types.map(([v, l]) => `<label><input type="radio" name="type" value="${v}" ${sc.type === v ? 'checked' : ''}><span class="chip">${l}</span></label>`).join('')}</div>
       <div class="chips f-weekdays">${WD.map((w, i) => `<label><input type="checkbox" name="wd" value="${i}" ${(sc.days || [0, 2, 4]).includes(i) ? 'checked' : ''}><span class="chip">${w}</span></label>`).join('')}</div>
       <div class="row f-interval"><div class="lbl">Alle</div><input type="number" name="min" min="1" max="365" value="${sc.min || 3}" inputmode="numeric"><span>bis</span><input type="number" name="max" min="1" max="365" value="${sc.max || 5}" inputmode="numeric"><span>Tage</span></div>
       <div class="row f-period"><input type="number" name="times" min="1" max="90" value="${sc.times || 3}" inputmode="numeric"><div class="lbl">× pro</div>

@@ -113,7 +113,13 @@ textarea { width: 100%; min-height: 80px; resize: vertical; }
 
 .f-weekdays, .f-interval, .f-period { display: none; }
 form[data-type=weekdays] .f-weekdays, form[data-type=interval] .f-interval, form[data-type=period] .f-period { display: flex; }
-form[data-type=weekdays] .chips.f-weekdays { display: flex; }
+form[data-type=weekdays] .chips.f-weekdays { display: grid; }
+.chips label { display: block; }
+.chips.types { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.chips.types label:last-child { grid-column: span 2; }
+.chips.types .chip { display: block; text-align: center; padding: 11px 8px; border-radius: 12px; }
+.chips.f-weekdays { grid-template-columns: repeat(7, 1fr); gap: 6px; padding-top: 0; }
+.chips.f-weekdays .chip { display: block; text-align: center; padding: 9px 0; border-radius: 10px; }
 
 /* Detail */
 .pill { display: inline-block; padding: 5px 10px; border-radius: 14px; font-size: 13.5px; font-weight: 600; color: #fff; background: var(--c); }

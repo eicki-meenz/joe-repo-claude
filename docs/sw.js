@@ -1,5 +1,5 @@
 // Offline-first: App-Shell aus dem Cache, im Hintergrund aktualisieren.
-const CACHE = 'dranbleiben-v1';
+const CACHE = 'dranbleiben-v2';
 const ASSETS = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png'];
 
