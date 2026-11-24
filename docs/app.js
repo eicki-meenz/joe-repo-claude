@@ -2,7 +2,7 @@
 /* HT Eick – Offline-Habit-Tracker (PWA). Alle Daten liegen lokal (localStorage). */
 
 const KEY = 'dranbleiben.v1'; // alter Name bleibt: Speicherschlüssel der vorhandenen Daten
-const APP_VERSION = '6 (HT Eick)';
+const APP_VERSION = '6 (HT Eick, neues Logo)';
 const DAY = 864e5;
 const COLORS = ['#22c55e', '#0a84ff', '#ff9f0a', '#bf5af2', '#ff375f', '#14b8a6', '#eab308', '#a16207'];
 const EMOJIS = ['💊', '🏋️', '🧘', '🏃', '💧', '📖', '🥗', '😴', '🦷', '🧠', '🚴', '🏊', '✍️', '🎸', '🌿', '☀️', '🧹', '📞', '💰', '🧴', '🥩', '🚶', '❄️', '🧺'];
