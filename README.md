@@ -1,4 +1,4 @@
-# Dranbleiben
+# HT Eick
 
 Offline-Habit-Tracker fürs iPhone, gebaut als PWA (Web-App für den Home-Bildschirm). Der Code liegt in `docs/`.
 

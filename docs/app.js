@@ -1,8 +1,8 @@
 'use strict';
-/* Dranbleiben – Offline-Habit-Tracker (PWA). Alle Daten liegen lokal (localStorage). */
+/* HT Eick – Offline-Habit-Tracker (PWA). Alle Daten liegen lokal (localStorage). */
 
-const KEY = 'dranbleiben.v1';
-const APP_VERSION = '5 (Monats-Challenges)';
+const KEY = 'dranbleiben.v1'; // alter Name bleibt: Speicherschlüssel der vorhandenen Daten
+const APP_VERSION = '6 (HT Eick)';
 const DAY = 864e5;
 const COLORS = ['#22c55e', '#0a84ff', '#ff9f0a', '#bf5af2', '#ff375f', '#14b8a6', '#eab308', '#a16207'];
 const EMOJIS = ['💊', '🏋️', '🧘', '🏃', '💧', '📖', '🥗', '😴', '🦷', '🧠', '🚴', '🏊', '✍️', '🎸', '🌿', '☀️', '🧹', '📞', '💰', '🧴', '🥩', '🚶', '❄️', '🧺'];
@@ -547,7 +547,7 @@ function renderSettings() {
   ${archived.length ? `<h2 class="sec">Archiviert</h2><div class="group">${archived.map(h => `<div class="row"><div class="lbl">${esc(h.emoji)} ${esc(h.name)}</div><button class="btn small sec" data-action="unarchive" data-id="${h.id}">Zurückholen</button></div>`).join('')}</div>` : ''}
   <h2 class="sec">Sonstiges</h2>
   <div class="group"><div class="row"><button class="rowbtn danger" data-action="wipe">Alle Daten löschen</button></div></div>
-  <p class="hint" style="text-align:center">Dranbleiben · Version ${APP_VERSION}</p>`;
+  <p class="hint" style="text-align:center">HT Eick · Version ${APP_VERSION}</p>`;
 }
 
 /* ---------- Sheets ---------- */
@@ -646,8 +646,8 @@ function renderNote(entryId) {
 
 /* ---------- Backup ---------- */
 async function exportBackup() {
-  const data = JSON.stringify(Object.assign({ app: 'dranbleiben', exportedAt: new Date().toISOString() }, state), null, 1);
-  const name = `dranbleiben-backup-${dayOf(Date.now())}.json`;
+  const data = JSON.stringify(Object.assign({ app: 'ht-eick', exportedAt: new Date().toISOString() }, state), null, 1);
+  const name = `ht-eick-backup-${dayOf(Date.now())}.json`;
   const file = new File([data], name, { type: 'application/json' });
   const mark = () => { state.settings.lastBackup = Date.now(); save(); render(); toast('☁️ Backup erstellt'); };
   try {
